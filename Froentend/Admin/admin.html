@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Voice Agent Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <!-- --------------------- Login Page ------------------- -->
+    <div class="login-container" id="login-page" style="display: none;">
+        <div class="login-form">
+            <h2>Restaurant Voice Agent Login</h2>
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" class="form-control" placeholder="Enter your username">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" class="form-control" placeholder="Enter your password">
+            </div>
+            <button class="login-btn" id="login-button">Login</button>
+        </div>
+    </div>
+
+    <!-- --------------------- Dashboard Container ------------------- -->
+    <div class="dashboard-container" id="dashboard-container">
+        <!-- --------------------- Sidebar ------------------- -->
+        <div class="sidebar">
+            <div>
+                <div class="logo">
+                    <h1>Voice<span>Eats</span></h1>
+                </div>
+                <div class="menu">
+                    <div class="menu-item active" data-target="dashboard">
+                        <i class="fas fa-home"></i>
+                        <span>Dashboard</span>
+                    </div>
+                    <div class="menu-item" data-target="products">
+                        <i class="fas fa-hamburger"></i>
+                        <span>Products</span>
+                    </div>
+                    <div class="menu-item" data-target="toppings">
+                        <i class="fas fa-cheese"></i>
+                        <span>Toppings</span>
+                    </div>
+                    <div class="menu-item" data-target="orders">
+                        <i class="fas fa-receipt"></i>
+                        <span>Orders</span>
+                    </div>
+                    <div class="menu-item" data-target="settings">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- --------------------- Sidebar Footer with Logout Button ------------------- -->
+            <div class="sidebar-footer">
+                <button class="logout-btn" id="logout-button">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- --------------------- Main Content ------------------- -->
+        <div class="main-content">
+            <div class="header">
+                <h2>Restaurant Voice Agent Dashboard</h2>
+                <div class="header-controls">
+                    <select class="month-selector" id="month-selector">
+                        <option value="january">January</option>
+                        <option value="february">February</option>
+                        <option value="march">March</option>
+                        <option value="april">April</option>
+                        <option value="may">May</option>
+                        <option value="june">June</option>
+                        <option value="july">July</option>
+                        <option value="august">August</option>
+                        <option value="september">September</option>
+                        <option value="october">October</option>
+                        <option value="november">November</option>
+                        <option value="december" selected>December</option>
+                    </select>
+                    <div class="user-info">
+                        <img src="https://randomuser.me/api/portraits/men/45.jpg" alt="Admin" id="admin-profile-img">
+                        <span>Admin User</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- --------------------- Dashboard Section ------------------- -->
+            <div class="content-section active" id="dashboard-section">
+                <h3 class="section-title">Dashboard Overview</h3>
+                
+                <div class="stats-cards">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-hamburger"></i>
+                        </div>
+                        <div class="stat-value">24</div>
+                        <div class="stat-label">Total Products</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-cheese"></i>
+                        </div>
+                        <div class="stat-value">15</div>
+                        <div class="stat-label">Total Toppings</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-receipt"></i>
+                        </div>
+                        <div class="stat-value">42</div>
+                        <div class="stat-label">Today's Orders</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="stat-value">$1,248</div>
+                        <div class="stat-label">Total Revenue</div>
+                    </div>
+                </div>
+                
+                <div class="charts-container">
+                    <div class="chart-card">
+                        <h4 class="chart-title">Revenue Distribution by Product</h4>
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h4 class="chart-title">Order Trends</h4>
+                        <canvas id="ordersChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- --------------------- Products Section ------------------- -->
+            <div class="content-section" id="products-section">
+                <h3 class="section-title">Manage Products</h3>
+                
+                <form id="product-form">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="product-image">Product Image</label>
+                                <div class="file-upload">
+                                    <div class="file-upload-btn">
+                                        <i class="fas fa-cloud-upload-alt" style="font-size: 24px; margin-bottom: 10px;"></i>
+                                        <p>Click to upload or drag and drop</p>
+                                        <p>PNG, JPG, GIF up to 10MB</p>
+                                    </div>
+                                    <input type="file" id="product-image" class="file-upload-input" accept="image/*">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="product-name">Product Name</label>
+                                <input type="text" id="product-name" class="form-control" placeholder="Enter product name">
+                            </div>
+                            <div class="form-group">
+                                <label for="product-price">Price ($)</label>
+                                <input type="number" id="product-price" class="form-control" placeholder="Enter price" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label for="product-size">Size</label>
+                                <select id="product-size" class="form-control">
+                                    <option value="small">Small</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="large">Large</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="product-description">Description</label>
+                        <textarea id="product-description" class="form-control" rows="4" placeholder="Enter product description"></textarea>
+                    </div>
+                    <button type="submit" class="btn">Add Product</button>
+                </form>
+
+                <h3 class="section-title" style="margin-top: 40px;">Product List</h3>
+                <div class="row" id="product-list">
+                    <!-- Product cards will be added here dynamically -->
+                    <div class="col-md-4">
+                        <div class="product-card">
+                            <div class="product-image">
+                                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80" alt="Pizza">
+                            </div>
+                            <div class="product-info">
+                                <h3 class="product-title">Margherita Pizza</h3>
+                                <div class="product-price">$12.99</div>
+                                <div class="product-size">Medium</div>
+                                <p class="product-description">Classic pizza with tomato sauce, mozzarella, and fresh basil</p>
+                                <button class="action-btn edit-btn">Edit</button>
+                                <button class="action-btn delete-btn">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="product-card">
+                            <div class="product-image">
+                                <img src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80" alt="Burger">
+                            </div>
+                            <div class="product-info">
+                                <h3 class="product-title">Classic Burger</h3>
+                                <div class="product-price">$9.99</div>
+                                <div class="product-size">Large</div>
+                                <p class="product-description">Juicy beef patty with lettuce, tomato, and special sauce</p>
+                                <button class="action-btn edit-btn">Edit</button>
+                                <button class="action-btn delete-btn">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="product-card">
+                            <div class="product-image">
+                                <img src="https://images.unsplash.com/photo-1559715745-e1b33a271c8f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80" alt="Soda">
+                            </div>
+                            <div class="product-info">
+                                <h3 class="product-title">Soft Drink</h3>
+                                <div class="product-price">$2.99</div>
+                                <div class="product-size">Small</div>
+                                <p class="product-description">Refreshing carbonated beverage with your choice of flavor</p>
+                                <button class="action-btn edit-btn">Edit</button>
+                                <button class="action-btn delete-btn">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- --------------------- Toppings Section ------------------- -->
+            <div class="content-section" id="toppings-section">
+                <h3 class="section-title">Manage Toppings</h3>
+                
+                <form id="topping-form">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="topping-name">Topping Name</label>
+                                <input type="text" id="topping-name" class="form-control" placeholder="Enter topping name">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="topping-price">Additional Price ($)</label>
+                                <input type="number" id="topping-price" class="form-control" placeholder="Enter additional price" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn">Add Topping</button>
+                </form>
+
+                <h3 class="section-title" style="margin-top: 40px;">Toppings List</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Additional Price</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="toppings-list">
+                        <tr>
+                            <td>Extra Cheese</td>
+                            <td>$1.50</td>
+                            <td>
+                                <button class="action-btn edit-btn">Edit</button>
+                                <button class="action-btn delete-btn">Delete</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Bacon</td>
+                            <td>$2.00</td>
+                            <td>
+                                <button class="action-btn edit-btn">Edit</button>
+                                <button class="action-btn delete-btn">Delete</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Mushrooms</td>
+                            <td>$1.00</td>
+                            <td>
+                                <button class="action-btn edit-btn">Edit</button>
+                                <button class="action-btn delete-btn">Delete</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- --------------------- Orders Section ------------------- -->
+            <div class="content-section" id="orders-section">
+                <h3 class="section-title">Order Management</h3>
+                <p>This section will display order history and current orders.</p>
+            </div>
+
+            <!-- --------------------- Settings Section ------------------- -->
+            <div class="content-section" id="settings-section">
+                <h3 class="section-title">Admin Settings</h3>
+                
+                <div class="settings-form">
+                    <div class="profile-image-container">
+                        <img src="https://randomuser.me/api/portraits/men/45.jpg" alt="Admin Profile" class="profile-image" id="profile-image">
+                        <div class="profile-image-upload">
+                            <div class="file-upload">
+                                <div class="file-upload-btn" style="padding: 10px 20px;">
+                                    <i class="fas fa-camera"></i> Change Profile Image
+                                </div>
+                                <input type="file" id="profile-image-upload" class="file-upload-input" accept="image/*">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form id="settings-form">
+                        <div class="form-group">
+                            <label for="admin-name">Name</label>
+                            <input type="text" id="admin-name" class="form-control" value="Admin User">
+                        </div>
+                        <div class="form-group">
+                            <label for="admin-email">Email</label>
+                            <input type="email" id="admin-email" class="form-control" value="admin@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="current-password">Current Password</label>
+                            <input type="password" id="current-password" class="form-control" placeholder="Enter current password">
+                        </div>
+                        <div class="form-group">
+                            <label for="new-password">New Password</label>
+                            <input type="password" id="new-password" class="form-control" placeholder="Enter new password">
+                        </div>
+                        <div class="form-group">
+                            <label for="confirm-password">Confirm New Password</label>
+                            <input type="password" id="confirm-password" class="form-control" placeholder="Confirm new password">
+                        </div>
+                        <button type="submit" class="btn">Update Settings</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
