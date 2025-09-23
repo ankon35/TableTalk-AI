@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="admin.css">
 </head>
+
 <body>
     <!-- --------------------- Login Page ------------------- -->
     <div class="login-container" id="login-page" style="display: none;">
@@ -56,7 +58,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- --------------------- Sidebar Footer with Logout Button ------------------- -->
             <div class="sidebar-footer">
                 <button class="logout-btn" id="logout-button">
@@ -95,7 +97,7 @@
             <!-- --------------------- Dashboard Section ------------------- -->
             <div class="content-section active" id="dashboard-section">
                 <h3 class="section-title">Dashboard Overview</h3>
-                
+
                 <div class="stats-cards">
                     <div class="stat-card">
                         <div class="stat-icon">
@@ -126,7 +128,7 @@
                         <div class="stat-label">Total Revenue</div>
                     </div>
                 </div>
-                
+
                 <div class="charts-container">
                     <div class="chart-card">
                         <h4 class="chart-title">Revenue Distribution by Product</h4>
@@ -142,7 +144,7 @@
             <!-- --------------------- Products Section ------------------- -->
             <div class="content-section" id="products-section">
                 <h3 class="section-title">Manage Products</h3>
-                
+
                 <form id="product-form">
                     <div class="row">
                         <div class="col-md-6">
@@ -150,7 +152,8 @@
                                 <label for="product-image">Product Image</label>
                                 <div class="file-upload">
                                     <div class="file-upload-btn">
-                                        <i class="fas fa-cloud-upload-alt" style="font-size: 24px; margin-bottom: 10px;"></i>
+                                        <i class="fas fa-cloud-upload-alt"
+                                            style="font-size: 24px; margin-bottom: 10px;"></i>
                                         <p>Click to upload or drag and drop</p>
                                         <p>PNG, JPG, GIF up to 10MB</p>
                                     </div>
@@ -161,11 +164,13 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="product-name">Product Name</label>
-                                <input type="text" id="product-name" class="form-control" placeholder="Enter product name">
+                                <input type="text" id="product-name" class="form-control"
+                                    placeholder="Enter product name">
                             </div>
                             <div class="form-group">
                                 <label for="product-price">Price ($)</label>
-                                <input type="number" id="product-price" class="form-control" placeholder="Enter price" step="0.01">
+                                <input type="number" id="product-price" class="form-control" placeholder="Enter price"
+                                    step="0.01">
                             </div>
                             <div class="form-group">
                                 <label for="product-size">Size</label>
@@ -179,7 +184,8 @@
                     </div>
                     <div class="form-group">
                         <label for="product-description">Description</label>
-                        <textarea id="product-description" class="form-control" rows="4" placeholder="Enter product description"></textarea>
+                        <textarea id="product-description" class="form-control" rows="4"
+                            placeholder="Enter product description"></textarea>
                     </div>
                     <button type="submit" class="btn">Add Product</button>
                 </form>
@@ -190,13 +196,15 @@
                     <div class="col-md-4">
                         <div class="product-card">
                             <div class="product-image">
-                                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80" alt="Pizza">
+                                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80"
+                                    alt="Pizza">
                             </div>
                             <div class="product-info">
                                 <h3 class="product-title">Margherita Pizza</h3>
                                 <div class="product-price">$12.99</div>
                                 <div class="product-size">Medium</div>
-                                <p class="product-description">Classic pizza with tomato sauce, mozzarella, and fresh basil</p>
+                                <p class="product-description">Classic pizza with tomato sauce, mozzarella, and fresh
+                                    basil</p>
                                 <button class="action-btn edit-btn">Edit</button>
                                 <button class="action-btn delete-btn">Delete</button>
                             </div>
@@ -205,13 +213,15 @@
                     <div class="col-md-4">
                         <div class="product-card">
                             <div class="product-image">
-                                <img src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80" alt="Burger">
+                                <img src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80"
+                                    alt="Burger">
                             </div>
                             <div class="product-info">
                                 <h3 class="product-title">Classic Burger</h3>
                                 <div class="product-price">$9.99</div>
                                 <div class="product-size">Large</div>
-                                <p class="product-description">Juicy beef patty with lettuce, tomato, and special sauce</p>
+                                <p class="product-description">Juicy beef patty with lettuce, tomato, and special sauce
+                                </p>
                                 <button class="action-btn edit-btn">Edit</button>
                                 <button class="action-btn delete-btn">Delete</button>
                             </div>
@@ -220,13 +230,15 @@
                     <div class="col-md-4">
                         <div class="product-card">
                             <div class="product-image">
-                                <img src="https://images.unsplash.com/photo-1559715745-e1b33a271c8f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80" alt="Soda">
+                                <img src="https://images.unsplash.com/photo-1559715745-e1b33a271c8f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80"
+                                    alt="Soda">
                             </div>
                             <div class="product-info">
                                 <h3 class="product-title">Soft Drink</h3>
                                 <div class="product-price">$2.99</div>
                                 <div class="product-size">Small</div>
-                                <p class="product-description">Refreshing carbonated beverage with your choice of flavor</p>
+                                <p class="product-description">Refreshing carbonated beverage with your choice of flavor
+                                </p>
                                 <button class="action-btn edit-btn">Edit</button>
                                 <button class="action-btn delete-btn">Delete</button>
                             </div>
@@ -238,19 +250,21 @@
             <!-- --------------------- Toppings Section ------------------- -->
             <div class="content-section" id="toppings-section">
                 <h3 class="section-title">Manage Toppings</h3>
-                
+
                 <form id="topping-form">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="topping-name">Topping Name</label>
-                                <input type="text" id="topping-name" class="form-control" placeholder="Enter topping name">
+                                <input type="text" id="topping-name" class="form-control"
+                                    placeholder="Enter topping name">
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="topping-price">Additional Price ($)</label>
-                                <input type="number" id="topping-price" class="form-control" placeholder="Enter additional price" step="0.01">
+                                <input type="number" id="topping-price" class="form-control"
+                                    placeholder="Enter additional price" step="0.01">
                             </div>
                         </div>
                     </div>
@@ -304,10 +318,11 @@
             <!-- --------------------- Settings Section ------------------- -->
             <div class="content-section" id="settings-section">
                 <h3 class="section-title">Admin Settings</h3>
-                
+
                 <div class="settings-form">
                     <div class="profile-image-container">
-                        <img src="https://randomuser.me/api/portraits/men/45.jpg" alt="Admin Profile" class="profile-image" id="profile-image">
+                        <img src="https://randomuser.me/api/portraits/men/45.jpg" alt="Admin Profile"
+                            class="profile-image" id="profile-image">
                         <div class="profile-image-upload">
                             <div class="file-upload">
                                 <div class="file-upload-btn" style="padding: 10px 20px;">
@@ -317,7 +332,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <form id="settings-form">
                         <div class="form-group">
                             <label for="admin-name">Name</label>
@@ -329,15 +344,18 @@
                         </div>
                         <div class="form-group">
                             <label for="current-password">Current Password</label>
-                            <input type="password" id="current-password" class="form-control" placeholder="Enter current password">
+                            <input type="password" id="current-password" class="form-control"
+                                placeholder="Enter current password">
                         </div>
                         <div class="form-group">
                             <label for="new-password">New Password</label>
-                            <input type="password" id="new-password" class="form-control" placeholder="Enter new password">
+                            <input type="password" id="new-password" class="form-control"
+                                placeholder="Enter new password">
                         </div>
                         <div class="form-group">
                             <label for="confirm-password">Confirm New Password</label>
-                            <input type="password" id="confirm-password" class="form-control" placeholder="Confirm new password">
+                            <input type="password" id="confirm-password" class="form-control"
+                                placeholder="Confirm new password">
                         </div>
                         <button type="submit" class="btn">Update Settings</button>
                     </form>
@@ -346,6 +364,8 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="admin.js"></script>
 </body>
+
 </html>
