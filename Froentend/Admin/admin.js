@@ -315,6 +315,7 @@ function removeImagePreview() {
 }
 
 // --------------------- Product Form Logic -------------------
+// --------------------- Product Form Logic -------------------
 document.getElementById('product-form').addEventListener('submit', async function (e) {
     e.preventDefault();
 
@@ -350,6 +351,9 @@ document.getElementById('product-form').addEventListener('submit', async functio
         if (newProduct) {
             // Reset form
             this.reset();
+            
+            // Reset image preview to default
+            removeImagePreview();
             
             // Reload products to show the new one
             await loadProducts();
