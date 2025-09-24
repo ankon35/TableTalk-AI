@@ -26,6 +26,10 @@ if (document.readyState === 'loading') {
 }
 
 // --------------------- Authentication Logic -------------------
+// Hardcoded admin credentials
+const ADMIN_EMAIL = 'ankon35744@gmail.com';
+const ADMIN_PASSWORD = '123';
+
 // Check if user is logged in
 let isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
 
@@ -36,8 +40,9 @@ if (!isLoggedIn) {
 } else {
     document.getElementById('login-page').style.display = 'none';
     document.getElementById('dashboard-container').style.display = 'flex';
-    // Load products when dashboard is shown
+    // Load products and toppings when dashboard is shown
     loadProducts();
+    loadToppings();
 }
 
 // Login functionality
@@ -45,23 +50,24 @@ document.getElementById('login-button').addEventListener('click', function () {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
 
-    // Simple validation (in a real app, this would be more secure)
-    if (username && password) {
+    // Validate against hardcoded credentials
+    if (username === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
         localStorage.setItem('isLoggedIn', 'true');
+        isLoggedIn = true;
         document.getElementById('login-page').style.display = 'none';
         document.getElementById('dashboard-container').style.display = 'flex';
-        // Load products after login
+        // Load products and toppings after login
         loadProducts();
-        // Load products after login
-        loadProducts();
+        loadToppings();
     } else {
-        alert('Please enter both username and password');
+        alert('Invalid username or password. Please use:\nEmail: ankon35744@gmail.com\nPassword: 123');
     }
 });
 
 // Logout functionality
 document.getElementById('logout-button').addEventListener('click', function () {
     localStorage.setItem('isLoggedIn', 'false');
+    isLoggedIn = false;
     document.getElementById('login-page').style.display = 'flex';
     document.getElementById('dashboard-container').style.display = 'none';
 });
@@ -86,35 +92,84 @@ document.querySelectorAll('.menu-item').forEach(item => {
         const target = this.getAttribute('data-target');
         document.getElementById(`${target}-section`).classList.add('active');
         
-        // If switching to products section, load products
+        // Load appropriate data when switching sections
         if (target === 'products') {
             console.log('Switching to products section, loading products...');
-            setTimeout(loadProducts, 100); // Small delay to ensure UI is ready
+            setTimeout(loadProducts, 100);
+        } else if (target === 'toppings') {
+            console.log('Switching to toppings section, loading toppings...');
+            setTimeout(loadToppings, 100);
+        } else if (target === 'dashboard' || target === 'orders') {
+            // Re-initialize month selector for dashboard and orders pages
+            setTimeout(initializeMonthSelector, 100);
         }
     });
 });
 
-// --------------------- Supabase Product Functions -------------------
-// *** IMPORTANT: Update these table name and column mappings ***
-const TABLE_NAME = 'product'; // Your actual table name (singular)
-// Column names with dots need to be quoted in PostgreSQL
-const COLUMN_MAPPING = {
-    name: '"p.name"',        // Quoted column name
-    price: '"p.price"',      // Quoted column name
-    size: '"p.size"',        // Quoted column name
-    description: '"p.description"', // Quoted column name
-    image: '"p.image"'       // Quoted column name
+// --------------------- Supabase Table Configuration -------------------
+const PRODUCT_TABLE = 'product';
+const TOPPING_TABLE = 'Toppings';
+
+// Product column mappings
+const PRODUCT_COLUMN_MAPPING = {
+    name: '"p.name"',
+    price: '"p.price"',
+    size: '"p.size"',
+    description: '"p.description"',
+    image: '"p.image"'
 };
 
+// Topping column mappings
+const TOPPING_COLUMN_MAPPING = {
+    name: 'Topping_name',
+    price: 'Topping_price'
+};
+
+// --------------------- Currency Formatting Functions -------------------
+// Function to format price in BDT Taka format
+function formatPriceBDT(price) {
+    if (price === null || price === undefined) return '৳0';
+    
+    const numericPrice = parseFloat(price);
+    if (isNaN(numericPrice)) return '৳0';
+    
+    return `৳${numericPrice.toFixed(2)}`;
+}
+
+// Function to parse BDT price input (remove currency symbol and convert to number)
+function parsePriceBDT(priceString) {
+    if (!priceString) return 0;
+    
+    // Remove BDT symbol and any non-numeric characters except decimal point
+    const numericString = priceString.replace(/[^\d.]/g, '');
+    const price = parseFloat(numericString);
+    
+    return isNaN(price) ? 0 : price;
+}
+
+// Function to validate price input (BDT format)
+function validatePriceInput(input) {
+    const value = input.value;
+    // Allow only numbers and decimal point
+    const sanitizedValue = value.replace(/[^\d.]/g, '');
+    
+    // Ensure only one decimal point
+    const decimalCount = sanitizedValue.split('.').length - 1;
+    if (decimalCount > 1) {
+        input.value = sanitizedValue.replace(/\.+$/, '');
+    } else {
+        input.value = sanitizedValue;
+    }
+}
+
+// --------------------- Product Functions -------------------
 // Function to add product to Supabase
 async function addProductToSupabase(productData) {
     try {
-        // Check if supabase is initialized
         if (!supabase) {
             throw new Error('Supabase not initialized');
         }
 
-        // For INSERT operations, we need to use the raw column names
         const insertData = {
             'p.name': productData.name,
             'p.price': parseFloat(productData.price),
@@ -123,10 +178,10 @@ async function addProductToSupabase(productData) {
             'p.image': productData.image
         };
 
-        console.log('Attempting to insert data:', insertData);
+        console.log('Attempting to insert product data:', insertData);
 
         const { data, error } = await supabase
-            .from(TABLE_NAME)
+            .from(PRODUCT_TABLE)
             .insert([insertData])
             .select();
 
@@ -139,7 +194,6 @@ async function addProductToSupabase(productData) {
     } catch (error) {
         console.error('Error adding product:', error);
         
-        // More detailed error message
         if (error.message.includes('404')) {
             alert('Table "product" not found. Please check your table name in Supabase.');
         } else if (error.message.includes('column')) {
@@ -154,16 +208,15 @@ async function addProductToSupabase(productData) {
 // Function to load products from Supabase
 async function loadProducts() {
     try {
-        // Check if supabase is initialized
         if (!supabase) {
             console.log('Supabase not initialized yet');
             return;
         }
 
         const { data, error } = await supabase
-            .from(TABLE_NAME)
+            .from(PRODUCT_TABLE)
             .select('*')
-            .order('id', { ascending: false }); // Using 'id' instead of 'created_at'
+            .order('id', { ascending: false });
 
         if (error) {
             console.error('Supabase error details:', error);
@@ -174,7 +227,6 @@ async function loadProducts() {
     } catch (error) {
         console.error('Error loading products:', error);
         
-        // More detailed error message
         if (error.message.includes('404')) {
             console.log('Table "products" not found. Please create the table in Supabase.');
         } else {
@@ -186,11 +238,21 @@ async function loadProducts() {
 // Function to display products in the UI
 function displayProducts(products) {
     const productList = document.getElementById('product-list');
+    if (!productList) {
+        console.log('Product list element not found');
+        return;
+    }
+    
     productList.innerHTML = ''; // Clear existing products
+
+    if (products.length === 0) {
+        productList.innerHTML = '<div class="col-12 text-center"><p>No products found. Add your first product!</p></div>';
+        return;
+    }
 
     products.forEach(product => {
         const colDiv = document.createElement('div');
-        colDiv.className = 'col-md-4';
+        colDiv.className = 'col-md-4 mb-4';
         colDiv.setAttribute('data-product-id', product.id);
 
         colDiv.innerHTML = `
@@ -200,7 +262,7 @@ function displayProducts(products) {
                 </div>
                 <div class="product-info">
                     <h3 class="product-title">${product['p.name']}</h3>
-                    <div class="product-price">$${product['p.price']}</div>
+                    <div class="product-price">${formatPriceBDT(product['p.price'])}</div>
                     <div class="product-size">${product['p.size']}</div>
                     <p class="product-description">${product['p.description']}</p>
                     <button class="action-btn edit-btn" onclick="editProduct(${product.id})">Edit</button>
@@ -221,7 +283,7 @@ async function deleteProduct(productId) {
 
     try {
         const { error } = await supabase
-            .from(TABLE_NAME)
+            .from(PRODUCT_TABLE)
             .delete()
             .eq('id', productId);
 
@@ -242,13 +304,153 @@ async function deleteProduct(productId) {
     }
 }
 
-// Function to edit product (placeholder for now)
-async function editProduct(productId) {
-    // This is a simple implementation - you can enhance it with a modal or inline editing
-    alert('Edit functionality can be implemented with a modal or form. Product ID: ' + productId);
-    // You can implement a more sophisticated edit functionality here
+// --------------------- Topping Functions -------------------
+// Function to add topping to Supabase
+async function addToppingToSupabase(toppingData) {
+    try {
+        if (!supabase) {
+            throw new Error('Supabase not initialized');
+        }
+
+        const insertData = {
+            [TOPPING_COLUMN_MAPPING.name]: toppingData.name,
+            [TOPPING_COLUMN_MAPPING.price]: parseFloat(toppingData.price)
+        };
+
+        console.log('Attempting to insert topping data:', insertData);
+
+        const { data, error } = await supabase
+            .from(TOPPING_TABLE)
+            .insert([insertData])
+            .select();
+
+        if (error) {
+            console.error('Supabase error details:', error);
+            throw error;
+        }
+
+        return data[0];
+    } catch (error) {
+        console.error('Error adding topping:', error);
+        
+        if (error.message.includes('404')) {
+            alert('Table "Toppings" not found. Please check your table name in Supabase.');
+        } else if (error.message.includes('column')) {
+            alert('Column not found. Error: ' + error.message);
+        } else {
+            alert('Error adding topping: ' + error.message);
+        }
+        return null;
+    }
 }
 
+// Function to load toppings from Supabase
+async function loadToppings() {
+    try {
+        if (!supabase) {
+            console.log('Supabase not initialized yet');
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from(TOPPING_TABLE)
+            .select('*')
+            .order('id', { ascending: false });
+
+        if (error) {
+            console.error('Supabase error details:', error);
+            throw error;
+        }
+
+        displayToppings(data || []);
+    } catch (error) {
+        console.error('Error loading toppings:', error);
+        
+        if (error.message.includes('404')) {
+            console.log('Table "Toppings" not found. Please create the table in Supabase.');
+            // Show message in UI
+            const toppingsList = document.getElementById('toppings-list');
+            if (toppingsList) {
+                toppingsList.innerHTML = '<tr><td colspan="3" class="text-center">Table "Toppings" not found. Please create the table in Supabase.</td></tr>';
+            }
+        } else {
+            console.log('Error loading toppings: ' + error.message);
+        }
+    }
+}
+
+// Function to display toppings in the UI
+function displayToppings(toppings) {
+    const toppingsList = document.getElementById('toppings-list');
+    if (!toppingsList) {
+        console.log('Toppings list element not found');
+        return;
+    }
+    
+    toppingsList.innerHTML = ''; // Clear existing toppings
+
+    if (toppings.length === 0) {
+        toppingsList.innerHTML = '<tr><td colspan="3" class="text-center">No toppings found. Add your first topping!</td></tr>';
+        return;
+    }
+
+    toppings.forEach(topping => {
+        const row = document.createElement('tr');
+        row.setAttribute('data-topping-id', topping.id);
+
+        row.innerHTML = `
+            <td>${topping[TOPPING_COLUMN_MAPPING.name]}</td>
+            <td>${formatPriceBDT(topping[TOPPING_COLUMN_MAPPING.price])}</td>
+            <td>
+                <button class="action-btn edit-btn" onclick="editTopping(${topping.id})">Edit</button>
+                <button class="action-btn delete-btn" onclick="deleteTopping(${topping.id})">Delete</button>
+            </td>
+        `;
+
+        toppingsList.appendChild(row);
+    });
+}
+
+// Function to delete topping from Supabase
+async function deleteTopping(toppingId) {
+    if (!confirm('Are you sure you want to delete this topping?')) {
+        return;
+    }
+
+    try {
+        const { error } = await supabase
+            .from(TOPPING_TABLE)
+            .delete()
+            .eq('id', toppingId);
+
+        if (error) {
+            throw error;
+        }
+
+        // Remove from UI
+        const toppingElement = document.querySelector(`[data-topping-id="${toppingId}"]`);
+        if (toppingElement) {
+            toppingElement.remove();
+        }
+
+        alert('Topping deleted successfully!');
+    } catch (error) {
+        console.error('Error deleting topping:', error);
+        alert('Error deleting topping: ' + error.message);
+    }
+}
+
+// Function to edit topping (placeholder)
+async function editTopping(toppingId) {
+    alert('Edit functionality can be implemented with a modal or form. Topping ID: ' + toppingId);
+}
+
+// Function to edit product (placeholder)
+async function editProduct(productId) {
+    alert('Edit functionality can be implemented with a modal or form. Product ID: ' + productId);
+}
+
+// --------------------- Image Handling Functions -------------------
 // Function to handle image upload
 function handleImageUpload(file) {
     return new Promise((resolve, reject) => {
@@ -257,11 +459,8 @@ function handleImageUpload(file) {
             return;
         }
 
-        // For demo purposes, we'll use a placeholder image URL
-        // In a real application, you would upload to Supabase Storage
         const reader = new FileReader();
         reader.onload = function(event) {
-            // In production, upload to Supabase Storage and get the public URL
             resolve(event.target.result);
         };
         reader.onerror = reject;
@@ -296,7 +495,6 @@ function createImagePreviewContainer(inputElement) {
     container.id = 'image-preview-container';
     container.style.marginTop = '10px';
     
-    // Insert after the file input
     inputElement.parentNode.insertBefore(container, inputElement.nextSibling);
     return container;
 }
@@ -314,8 +512,8 @@ function removeImagePreview() {
     }
 }
 
-// --------------------- Product Form Logic -------------------
-// --------------------- Product Form Logic -------------------
+// --------------------- Form Submission Logic -------------------
+// Product Form Submission
 document.getElementById('product-form').addEventListener('submit', async function (e) {
     e.preventDefault();
 
@@ -325,6 +523,12 @@ document.getElementById('product-form').addEventListener('submit', async functio
     const size = document.getElementById('product-size').value;
     const description = document.getElementById('product-description').value;
     const imageFile = document.getElementById('product-image').files[0];
+
+    // Validate required fields
+    if (!name || !price || !size) {
+        alert('Please fill in all required fields: Name, Price, and Size');
+        return;
+    }
 
     // Show loading state
     const submitBtn = this.querySelector('button[type="submit"]');
@@ -370,38 +574,56 @@ document.getElementById('product-form').addEventListener('submit', async functio
     }
 });
 
-// --------------------- Topping Form Logic -------------------
-document.getElementById('topping-form').addEventListener('submit', function (e) {
+// Topping Form Submission
+document.getElementById('topping-form').addEventListener('submit', async function (e) {
     e.preventDefault();
 
     // Get form values
     const name = document.getElementById('topping-name').value;
     const price = document.getElementById('topping-price').value;
 
-    // Create new table row
-    const toppingsList = document.getElementById('toppings-list');
-    const row = document.createElement('tr');
+    // Validate required fields
+    if (!name || !price) {
+        alert('Please fill in all required fields: Name and Price');
+        return;
+    }
 
-    row.innerHTML = `
-                <td>${name}</td>
-                <td>$${price}</td>
-                <td>
-                    <button class="action-btn edit-btn">Edit</button>
-                    <button class="action-btn delete-btn">Delete</button>
-                </td>
-            `;
+    // Show loading state
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Adding Topping...';
+    submitBtn.disabled = true;
 
-    // Add to the table
-    toppingsList.appendChild(row);
+    try {
+        // Prepare topping data
+        const toppingData = {
+            name: name,
+            price: price
+        };
 
-    // Reset form
-    this.reset();
+        // Add to Supabase
+        const newTopping = await addToppingToSupabase(toppingData);
 
-    // Show success message
-    alert('Topping added successfully!');
+        if (newTopping) {
+            // Reset form
+            this.reset();
+            
+            // Reload toppings to show the new one
+            await loadToppings();
+            
+            alert('Topping added successfully!');
+        }
+    } catch (error) {
+        console.error('Error in topping submission:', error);
+        alert('Error adding topping. Please try again.');
+    } finally {
+        // Reset button state
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    }
 });
 
-// --------------------- Settings Form Logic -------------------
+// Settings Form Submission
 document.getElementById('settings-form').addEventListener('submit', function (e) {
     e.preventDefault();
 
@@ -438,15 +660,92 @@ document.getElementById('profile-image-upload').addEventListener('change', funct
     }
 });
 
-// --------------------- Delete Functionality -------------------
-document.addEventListener('click', function (e) {
-    if (e.target.classList.contains('delete-btn') && !e.target.hasAttribute('onclick')) {
-        if (confirm('Are you sure you want to delete this item?')) {
-            // This handles non-product delete buttons (like toppings)
-            if (e.target.closest('tr')) {
-                e.target.closest('tr').remove();
-            }
+// --------------------- Utility Functions -------------------
+// Function to test Supabase connection
+async function testSupabaseConnection() {
+    try {
+        if (!supabase) {
+            alert('Supabase not initialized');
+            return;
         }
+
+        // Test products connection
+        const { data: products, error: productsError } = await supabase
+            .from(PRODUCT_TABLE)
+            .select('count')
+            .limit(1);
+
+        // Test toppings connection
+        const { data: toppings, error: toppingsError } = await supabase
+            .from(TOPPING_TABLE)
+            .select('count')
+            .limit(1);
+
+        let message = 'Connection Test Results:\n\n';
+        message += `Products Table: ${productsError ? 'ERROR - ' + productsError.message : 'SUCCESS'}\n`;
+        message += `Toppings Table: ${toppingsError ? 'ERROR - ' + toppingsError.message : 'SUCCESS'}`;
+
+        alert(message);
+    } catch (error) {
+        alert('Connection test failed: ' + error.message);
+    }
+}
+
+// Function to initialize month selector (only for dashboard and orders)
+function initializeMonthSelector() {
+    const monthSelector = document.getElementById('month-selector');
+    if (monthSelector) {
+        // Remove existing event listeners to avoid duplicates
+        monthSelector.replaceWith(monthSelector.cloneNode(true));
+        
+        // Get the new reference
+        const newMonthSelector = document.getElementById('month-selector');
+        
+        newMonthSelector.addEventListener('change', function () {
+            // Only show alert if we're on dashboard or orders page
+            const activeSection = document.querySelector('.content-section.active');
+            if (activeSection && (activeSection.id === 'dashboard-section' || activeSection.id === 'orders-section')) {
+                alert(`Data updated for ${this.value}`);
+                
+                // Here you can add actual data update logic
+                updateChartData(this.value);
+            }
+        });
+    }
+}
+
+// Function to update chart data based on selected month
+function updateChartData(month) {
+    console.log(`Updating charts for month: ${month}`);
+    
+    // Example: You would fetch new data from Supabase based on the month
+    // and update the charts accordingly
+    // This is where you'd implement actual data fetching and chart updates
+}
+
+// --------------------- Price Input Validation -------------------
+// Add price input validation to product and topping forms
+document.addEventListener('DOMContentLoaded', function() {
+    // Product price input validation
+    const productPriceInput = document.getElementById('product-price');
+    if (productPriceInput) {
+        productPriceInput.addEventListener('input', function() {
+            validatePriceInput(this);
+        });
+        
+        // Add BDT symbol placeholder
+        productPriceInput.placeholder = 'Enter price in BDT';
+    }
+
+    // Topping price input validation
+    const toppingPriceInput = document.getElementById('topping-price');
+    if (toppingPriceInput) {
+        toppingPriceInput.addEventListener('input', function() {
+            validatePriceInput(this);
+        });
+        
+        // Add BDT symbol placeholder
+        toppingPriceInput.placeholder = 'Enter price in BDT';
     }
 });
 
@@ -455,68 +754,6 @@ document.addEventListener('DOMContentLoaded', function () {
     console.log('DOM Content Loaded');
     console.log('Is logged in:', isLoggedIn);
     
-    // Wait for Supabase to be fully initialized
-    setTimeout(() => {
-        console.log('Delayed initialization check - Supabase client:', supabase);
-        
-        // Load products when page is ready and user is logged in
-        if (isLoggedIn && supabase) {
-            console.log('User is logged in and Supabase ready, loading products...');
-            loadProducts();
-        } else {
-            console.log('Conditions not met - isLoggedIn:', isLoggedIn, 'supabase:', !!supabase);
-        }
-    }, 1000);
-
-    // Add manual load products button for testing
-    setTimeout(() => {
-        const productSection = document.getElementById('products-section');
-        if (productSection && !document.getElementById('test-buttons-added')) {
-            const testContainer = document.createElement('div');
-            testContainer.id = 'test-buttons-added';
-            testContainer.style.cssText = 'margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 2px solid #007bff;';
-            
-            const testButton = document.createElement('button');
-            testButton.innerHTML = 'Reload Products (Test)';
-            testButton.style.cssText = 'background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin-right: 10px; cursor: pointer;';
-            testButton.onclick = () => {
-                console.log('Manual reload products clicked');
-                loadProducts();
-            };
-            
-            // Add test connection button
-            const testConnButton = document.createElement('button');
-            testConnButton.innerHTML = 'Test Connection';
-            testConnButton.style.cssText = 'background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin-right: 10px; cursor: pointer;';
-            testConnButton.onclick = testSupabaseConnection;
-            
-            // Add debug button
-            const debugButton = document.createElement('button');
-            debugButton.innerHTML = 'Debug Info';
-            debugButton.style.cssText = 'background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;';
-            debugButton.onclick = () => {
-                console.log('=== DEBUG INFO ===');
-                console.log('Supabase client:', supabase);
-                console.log('Table name:', TABLE_NAME);
-                console.log('Is logged in:', isLoggedIn);
-                console.log('Product list element:', document.getElementById('product-list'));
-                alert('Debug info logged to console. Press F12 to view.');
-            };
-            
-            testContainer.appendChild(testConnButton);
-            testContainer.appendChild(testButton);
-            testContainer.appendChild(debugButton);
-            
-            const title = document.createElement('h4');
-            title.textContent = 'Testing Tools';
-            title.style.cssText = 'margin: 0 0 10px 0; color: #007bff;';
-            testContainer.insertBefore(title, testContainer.firstChild);
-            
-            productSection.insertBefore(testContainer, productSection.firstChild);
-            console.log('Test buttons added to products section');
-        }
-    }, 1500);
-
     // Add image preview functionality to product image input
     const productImageInput = document.getElementById('product-image');
     if (productImageInput) {
@@ -525,67 +762,97 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Revenue Distribution Pie Chart
-    const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-    const revenueChart = new Chart(revenueCtx, {
-        type: 'pie',
-        data: {
-            labels: ['Pizzas', 'Burgers', 'Drinks', 'Sides', 'Desserts'],
-            datasets: [{
-                data: [35, 25, 15, 15, 10],
-                backgroundColor: [
-                    '#ff6b6b',
-                    '#4ecdc4',
-                    '#ffa844',
-                    '#6a89cc',
-                    '#f368e0'
-                ],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'bottom'
+    // Wait for Supabase to be fully initialized and load data
+    setTimeout(() => {
+        console.log('Delayed initialization check - Supabase client:', supabase);
+        
+        // Load products and toppings when page is ready and user is logged in
+        if (isLoggedIn && supabase) {
+            console.log('User is logged in and Supabase ready, loading data...');
+            loadProducts();
+            loadToppings();
+        } else {
+            console.log('Conditions not met - isLoggedIn:', isLoggedIn, 'supabase:', !!supabase);
+        }
+    }, 1000);
+
+    // Add simple test button for products only
+    setTimeout(() => {
+        const productSection = document.getElementById('products-section');
+        if (productSection && !document.getElementById('products-test-button')) {
+            const testButton = document.createElement('button');
+            testButton.id = 'products-test-button';
+            testButton.innerHTML = 'Reload Products';
+            testButton.style.cssText = 'background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin: 10px; cursor: pointer;';
+            testButton.onclick = () => {
+                console.log('Manual reload products clicked');
+                loadProducts();
+            };
+            productSection.appendChild(testButton);
+        }
+    }, 1500);
+
+    // Initialize month selector on page load if we're on dashboard or orders
+    const activeSection = document.querySelector('.content-section.active');
+    if (activeSection && (activeSection.id === 'dashboard-section' || activeSection.id === 'orders-section')) {
+        initializeMonthSelector();
+    }
+
+    // Revenue Distribution Pie Chart - only initialize if chart element exists
+    const revenueCtx = document.getElementById('revenueChart');
+    if (revenueCtx) {
+        const revenueChart = new Chart(revenueCtx.getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: ['Pizzas', 'Burgers', 'Drinks', 'Sides', 'Desserts'],
+                datasets: [{
+                    data: [35, 25, 15, 15, 10],
+                    backgroundColor: [
+                        '#ff6b6b',
+                        '#4ecdc4',
+                        '#ffa844',
+                        '#6a89cc',
+                        '#f368e0'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
                 }
             }
-        }
-    });
+        });
+    }
 
-    // Orders Trend Line Chart
-    const ordersCtx = document.getElementById('ordersChart').getContext('2d');
-    const ordersChart = new Chart(ordersCtx, {
-        type: 'line',
-        data: {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-            datasets: [{
-                label: 'Orders This Week',
-                data: [65, 59, 80, 81, 56, 120, 110],
-                fill: false,
-                borderColor: '#ff6b6b',
-                tension: 0.1,
-                pointBackgroundColor: '#ff6b6b',
-                pointRadius: 5
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true
+    // Orders Trend Line Chart - only initialize if chart element exists
+    const ordersCtx = document.getElementById('ordersChart');
+    if (ordersCtx) {
+        const ordersChart = new Chart(ordersCtx.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Orders This Week',
+                    data: [65, 59, 80, 81, 56, 120, 110],
+                    fill: false,
+                    borderColor: '#ff6b6b',
+                    tension: 0.1,
+                    pointBackgroundColor: '#ff6b6b',
+                    pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
                 }
             }
-        }
-    });
-
-    // Month selector change event
-    document.getElementById('month-selector').addEventListener('change', function () {
-        // In a real app, this would fetch data for the selected month
-        alert(`Data updated for ${this.value}`);
-    });
+        });
+    }
 });
-
-
-
-
