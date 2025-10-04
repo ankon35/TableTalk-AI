@@ -777,20 +777,20 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 1000);
 
     // Add simple test button for products only
-    setTimeout(() => {
-        const productSection = document.getElementById('products-section');
-        if (productSection && !document.getElementById('products-test-button')) {
-            const testButton = document.createElement('button');
-            testButton.id = 'products-test-button';
-            testButton.innerHTML = 'Reload Products';
-            testButton.style.cssText = 'background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin: 10px; cursor: pointer;';
-            testButton.onclick = () => {
-                console.log('Manual reload products clicked');
-                loadProducts();
-            };
-            productSection.appendChild(testButton);
-        }
-    }, 1500);
+    // setTimeout(() => {
+    //     const productSection = document.getElementById('products-section');
+    //     if (productSection && !document.getElementById('products-test-button')) {
+    //         const testButton = document.createElement('button');
+    //         testButton.id = 'products-test-button';
+    //         testButton.innerHTML = 'Reload Products';
+    //         testButton.style.cssText = 'background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin: 10px; cursor: pointer;';
+    //         testButton.onclick = () => {
+    //             console.log('Manual reload products clicked');
+    //             loadProducts();
+    //         };
+    //         productSection.appendChild(testButton);
+    //     }
+    // }, 1500);
 
     // Initialize month selector on page load if we're on dashboard or orders
     const activeSection = document.querySelector('.content-section.active');
