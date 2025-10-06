@@ -46,11 +46,21 @@
 
 
 
+
+
+
+# sania_agent.py
+"""
+Friendly, natural-sounding LiveKit Agent for Ankon Restaurant (prompt-based follow-up).
+This version uses prompt instructions only to enforce the 5-second follow-up behavior
+(e.g., "Hello? Can you hear me okay?") — no runtime timers are added.
+"""
+
 from dotenv import load_dotenv
 import os
-from supabase import create_client, Client
 import time
 
+from supabase import create_client, Client
 from livekit import agents
 from livekit.agents import AgentSession, Agent, RoomInputOptions, function_tool, RunContext
 from livekit.plugins import noise_cancellation
@@ -58,252 +68,197 @@ from livekit.plugins import google
 
 load_dotenv(".env")
 
-# Constants for Supabase product table
+# ---------- CONFIG ----------
 PRODUCT_TABLE = "product"
-# Column names match your actual Supabase table structure
 PRODUCT_COLUMNS = ["p.name", "p.price", "p.size", "p.description", "p.image"]
 
-# AGENT_INSTRUCTION
+# ---------- AGENT PERSONALITY ----------
 AGENT_INSTRUCTION = """
-# Persona
-You are Sania, a professional Salesperson for Ankon Restaurant.
+You are Sania — a warm, friendly order taker for Ankon Restaurant.
+Sound natural, smile in your voice, and be conversational — like a real person behind the counter.
+You keep the conversation light, helpful, and human.
 
-# ABSOLUTE RULES - NEVER BREAK THESE
-1. You do NOT know what products exist until you call the tools
-2. NEVER invent, guess, or make up product names
-3. NEVER mention any specific product name unless it came from a tool response
-4. If you haven't called fetch_all_products yet, DO NOT talk about specific menu items
-5. Only speak about products that are explicitly listed in the tool response you just received
+ABSOLUTE RULES:
+1. You DO NOT know product names until you call the tools.
+2. NEVER invent product names or details.
+3. USE product names and details exactly as returned from tool responses.
+4. Always confirm order details before finalizing.
+5. After confirming an order, collect customer's name, address, and phone number.
 
-# Tool Usage
-- fetch_all_products: Returns actual products from database. Use the returned data ONLY.
-- fetch_product_info: Returns specific product details. Use the returned data ONLY.
+TOOL USAGE:
+- fetch_all_products: returns the full menu (use this before mentioning any product).
+- fetch_product_info: returns info for a single product (use exact returned values in replies).
 
-# Speaking Style
-- Friendly and professional
-- Only discuss products after receiving tool data
-- If you don't have data yet, say you're checking the menu
+SPEAKING STYLE:
+- Friendly, casual, and natural. Use small talk and short natural phrases.
+- Prefer phrases like: "Hey there!", "Nice to meet you!", "Gotcha — one sec while I check.", "Are you still there? Can you hear me okay?"
+- Keep replies short and human: contractions are fine ("I'm", "we've", "that's"), use emojis sparingly only if appropriate.
 """
 
-# SESSION_INSTRUCTION
+# ---------- CONVERSATION FLOW (natural tone, prompt-based follow-ups) ----------
 SESSION_INSTRUCTION = """
-# Your Task
-Call a customer from Ankon Restaurant to offer menu items.
 
-# STRICT PROCESS - FOLLOW IN ORDER
+You are Sania from Ankon Restaurant. Follow this natural conversation flow, but allow for fluidity and avoid waiting too long at each step. Keep things warm, friendly, and human-like.
 
-Step 1: Greet
-Say: "Hello, this is Sania from Ankon Restaurant—how are you today?"
+Important rule for silence:
 
-Step 2: After greeting, IMMEDIATELY SAY:
-"Let me check what we have available for you today."
+If the customer doesn’t respond, prompt gently with a friendly follow-up like: "Hey, can you hear me?" or "Are you still with me?" after a natural pause.
 
-Step 3: IMMEDIATELY call fetch_all_products (DO NOT skip this step)
+Use pauses to create a comfortable, conversational rhythm instead of waiting too long.
 
-Step 4: WAIT for the tool response
+Flow (friendly & natural):
 
-Step 5: The tool will return a JSON with:
-{
-  "products": [
-    {"name": "...", "price": "...", "size": "...", "description": "..."},
-    ...
-  ],
-  "message": "..."
-}
+Greeting / Ask name
+Say: "Hey there! This is Sania from Ankon Restaurant — what's your name?"
+If no reply: "Hello? Can you hear me okay?"
 
-Step 6: Read the "products" array. For EACH product in the array, you MUST:
-- Take the exact "name" value
-- Take the exact "price" value  
-- Take the exact "size" value
-- Take the exact "description" value
+After name
+Say: "Nice to meet you, [name]! How's your day going?"
+If no reply: "Are you still with me?"
 
-Step 7: Speak to customer using ONLY those exact values. Example format:
-"We have [exact name from product[0]], which is [exact size from product[0]] size at [exact price from product[0]] - [exact description from product[0]]. We also have [exact name from product[1]] at [exact price from product[1]], [exact size from product[1]] size - [exact description from product[1]]."
+Small talk -> Offer to help order
+If customer responds (e.g., 'I'm good'):
+Say: "That's great to hear! Want me to help you pick something tasty from our menu?"
+If no reply: "Hey — you there?"
 
-# CRITICAL
-- Do NOT say product names before Step 6
-- Do NOT invent any product information
-- Use ONLY the exact strings from the tool response
-- If tool returns empty, say "We don't have items available right now"
+If customer says yes:
+"Sweet — let me check our menu for you."
+[Wait a moment, then fetch the products]
+
+After fetching the products:
+"Alright, here's what we've got today: [product names]. Anything jump out at you?"
+If no reply: "Can you hear me okay?"
+
+When customer chooses an item
+Say: "Nice pick! How many would you like?"
+If no reply: "Still there?"
+
+Ask about add-ons
+Say: "Want to add a drink or a side with that?"
+If no reply: "Can you hear me? 😊"
+
+Confirm the order
+Say: "So that's [quantity] × [item] (plus [sides/drinks if any]). Is that right?"
+If no reply: "Are you with me?"
+
+Collect delivery details after confirmation
+Say: "Perfect! Could I get your full name, delivery address, and a phone number so we can confirm?"
+If no reply: "Hello? Can you hear me okay?"
+
+Final confirmation and friendly close
+Say: "Thanks, [name]! I've got everything. We'll get your order ready. Anything else I can help with?"
+If no reply: "Alright, I'll be here if you need anything!"
+
+BEHAVIOR NOTES:
+
+Keep the conversation warm, engaging, and smooth.
+
+Don’t hesitate to keep the flow going with natural pauses (e.g., after presenting the menu) instead of waiting for each response.
+
+Repeat the customer's exact words for order confirmation.
+
+Always be warm, human, and concise. Add gentle follow-ups when needed, but make sure the conversation doesn't feel robotic.
+
 """
 
+# ---------- ASSISTANT CLASS ----------
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=AGENT_INSTRUCTION)
-        # Initialize Supabase client
         try:
             supabase_url = os.getenv("SUPABASE_URL")
             supabase_key = os.getenv("SUPABASE_KEY")
-            
-            print(f"[DEBUG] Initializing Supabase at {time.strftime('%H:%M:%S %z on %Y-%m-%d')}")
-            print(f"[DEBUG] SUPABASE_URL: {supabase_url[:30]}..." if supabase_url else "[DEBUG] SUPABASE_URL is None")
-            print(f"[DEBUG] SUPABASE_KEY exists: {bool(supabase_key)}")
-            
+            print(f"[DEBUG] Initializing Supabase at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            if not supabase_url or not supabase_key:
+                print("[WARN] SUPABASE_URL or SUPABASE_KEY not set in environment.")
             self.supabase: Client = create_client(supabase_url, supabase_key)
-            print(f"[SUCCESS] Supabase initialized successfully at {time.strftime('%H:%M:%S %z on %Y-%m-%d')}")
+            print("[SUCCESS] Supabase client initialized.")
         except Exception as e:
-            print(f"[ERROR] Supabase initialization failed at {time.strftime('%H:%M:%S %z on %Y-%m-%d')}: {str(e)}")
-            raise Exception(f"Failed to initialize Supabase client: {str(e)}")
+            print(f"[ERROR] Failed to initialize Supabase: {e}")
+            raise
 
     @function_tool()
-    async def fetch_product_info(
-        self,
-        context: RunContext,
-        product_name: str,
-    ) -> str:
+    async def fetch_all_products(self, context: RunContext) -> str:
         """
-        Fetch specific product information from database.
-        
-        Args:
-            product_name: Exact product name to search for
-        
-        Returns:
-            String with product details you MUST use in your response
-        """
-        max_retries = 2
-        for attempt in range(max_retries):
-            try:
-                print(f"[DEBUG] fetch_product_info: Attempt {attempt + 1}/{max_retries}")
-                print(f"[DEBUG] Searching for product: '{product_name}'")
-                
-                response = (
-                    self.supabase.table(PRODUCT_TABLE)
-                    .select('*')
-                    .eq("p.name", product_name)
-                    .execute()
-                )
-                
-                print(f"[DEBUG] fetch_product_info response.data: {response.data}")
-                
-                if response.data and len(response.data) > 0:
-                    product_data = response.data[0]
-                    name = product_data.get("p.name")
-                    price = product_data.get('p.price')
-                    size = product_data.get("p.size")
-                    desc = product_data.get("p.description")
-                    
-                    result = f"PRODUCT FOUND: Name='{name}', Price=${price}, Size={size}, Description={desc}. YOU MUST use these exact values when talking to the customer."
-                    
-                    print(f"[SUCCESS] Returning to LLM: {result}")
-                    return result
-                else:
-                    print(f"[WARNING] No data found for product_name='{product_name}'")
-                    return f"ERROR: Product '{product_name}' does not exist in our database."
-                    
-            except Exception as e:
-                print(f"[ERROR] fetch_product_info failed: {str(e)}")
-                if attempt < max_retries - 1:
-                    time.sleep(2)
-                else:
-                    return f"ERROR: Cannot access database right now. {str(e)}"
-
-    @function_tool()
-    async def fetch_all_products(
-        self,
-        context: RunContext,
-    ) -> str:
-        """
-        Fetch ALL products from database. This returns the complete menu.
-        You MUST call this before talking about any specific products.
-        
-        Returns:
-            String listing all products with their details that you MUST use exactly as provided
-        """
-        max_retries = 2
-        for attempt in range(max_retries):
-            try:
-                print(f"[DEBUG] fetch_all_products: Attempt {attempt + 1}/{max_retries}")
-                
-                response = (
-                    self.supabase.table(PRODUCT_TABLE)
-                    .select('*')
-                    .execute()
-                )
-                
-                print(f"[DEBUG] fetch_all_products response.data: {response.data}")
-                
-                if response.data and len(response.data) > 0:
-                    # Build a very explicit string format
-                    result_lines = [f"MENU DATABASE RESULTS - {len(response.data)} PRODUCTS FOUND:\n"]
-                    
-                    for idx, product in enumerate(response.data, 1):
-                        name = product.get("p.name")
-                        price = product.get('p.price')
-                        size = product.get("p.size")
-                        desc = product.get("p.description")
-                        
-                        result_lines.append(
-                            f"Product {idx}: NAME='{name}', PRICE=${price}, SIZE={size}, DESCRIPTION={desc}"
-                        )
-                    
-                    result_lines.append("\nYOU MUST mention these EXACT product names and details to the customer. Do NOT make up any other products.")
-                    
-                    result = "\n".join(result_lines)
-                    print(f"[SUCCESS] Returning to LLM:\n{result}")
-                    return result
-                else:
-                    print("[WARNING] No products found in database")
-                    return "ERROR: No products found in database. Tell customer menu is currently unavailable."
-                    
-            except Exception as e:
-                print(f"[ERROR] fetch_all_products failed: {str(e)}")
-                if attempt < max_retries - 1:
-                    time.sleep(2)
-                else:
-                    return f"ERROR: Cannot access database. {str(e)}"
-
-    # Helper used from entrypoint (synchronous-friendly)
-    def get_all_products_for_entrypoint(self) -> str:
-        """
-        Synchronously fetch all products and return the same formatted string
-        used by the async tool. This lets entrypoint obtain product data
-        before calling `session.generate_reply` so the LLM has the menu.
+        Returns a short friendly listing of products — EXACT product names and their details
+        must be used by the LLM when speaking with customers.
         """
         try:
-            print(f"[DEBUG] get_all_products_for_entrypoint: querying database")
-            response = (
-                self.supabase.table(PRODUCT_TABLE)
-                .select('*')
-                .execute()
-            )
+            response = self.supabase.table(PRODUCT_TABLE).select("*").execute()
+            if response.data and len(response.data) > 0:
+                lines = [f"MENU DATABASE RESULTS - {len(response.data)} PRODUCTS FOUND:\n"]
+                # Keep entries concise; these strings are what the LLM must use verbatim
+                for idx, product in enumerate(response.data, 1):
+                    name = product.get("p.name")
+                    price = product.get("p.price")
+                    size = product.get("p.size")
+                    desc = product.get("p.description")
+                    lines.append(f"Product {idx}: NAME='{name}', PRICE=${price}, SIZE={size}, DESCRIPTION={desc}")
+                lines.append("\nUse these exact product names and details in conversation. Do NOT invent items.")
+                result = "\n".join(lines)
+                print(f"[DEBUG] fetch_all_products returning {len(response.data)} products.")
+                return result
+            else:
+                print("[WARN] No products found in database.")
+                return "ERROR: No products found in database. Tell the customer the menu is currently unavailable."
+        except Exception as e:
+            print(f"[ERROR] fetch_all_products exception: {e}")
+            return f"ERROR: Cannot access database. {str(e)}"
 
-            print(f"[DEBUG] get_all_products_for_entrypoint response.data: {response.data}")
+    @function_tool()
+    async def fetch_product_info(self, context: RunContext, product_name: str) -> str:
+        """
+        Return the exact product info string the LLM must use when describing the product.
+        """
+        try:
+            response = self.supabase.table(PRODUCT_TABLE).select("*").eq("p.name", product_name).execute()
+            if response.data and len(response.data) > 0:
+                product = response.data[0]
+                name = product.get("p.name")
+                price = product.get("p.price")
+                size = product.get("p.size")
+                desc = product.get("p.description")
+                result = f"PRODUCT FOUND: Name='{name}', Price=${price}, Size={size}, Description={desc}. USE THESE EXACT VALUES."
+                print(f"[DEBUG] fetch_product_info found product: {name}")
+                return result
+            else:
+                print(f"[WARN] Product not found: {product_name}")
+                return f"ERROR: Product '{product_name}' does not exist in our database."
+        except Exception as e:
+            print(f"[ERROR] fetch_product_info exception: {e}")
+            return f"ERROR: Cannot access database right now. {str(e)}"
 
+    def get_all_products_for_entrypoint(self) -> str:
+        """Synchronous helper used before starting the session so initial prompt has the menu."""
+        try:
+            response = self.supabase.table(PRODUCT_TABLE).select("*").execute()
             if response.data and len(response.data) > 0:
                 result_lines = [f"MENU DATABASE RESULTS - {len(response.data)} PRODUCTS FOUND:\n"]
                 for idx, product in enumerate(response.data, 1):
                     name = product.get("p.name")
-                    price = product.get('p.price')
+                    price = product.get("p.price")
                     size = product.get("p.size")
                     desc = product.get("p.description")
-
-                    result_lines.append(
-                        f"Product {idx}: NAME='{name}', PRICE=${price}, SIZE={size}, DESCRIPTION={desc}"
-                    )
-
-                result_lines.append("\nYOU MUST mention these EXACT product names and details to the customer. Do NOT make up any other products.")
-                result = "\n".join(result_lines)
-                return result
+                    result_lines.append(f"Product {idx}: NAME='{name}', PRICE=${price}, SIZE={size}, DESCRIPTION={desc}")
+                result_lines.append("\nUse these exact product names and details in conversation.")
+                return "\n".join(result_lines)
             else:
-                return "ERROR: No products found in database. Tell customer menu is currently unavailable."
+                return "ERROR: No products found in database."
         except Exception as e:
-            print(f"[ERROR] get_all_products_for_entrypoint failed: {str(e)}")
             return f"ERROR: Cannot access database. {str(e)}"
 
+# ---------- ENTRYPOINT ----------
 async def entrypoint(ctx: agents.JobContext):
-    print(f"[DEBUG] Entrypoint started at {time.strftime('%H:%M:%S %z on %Y-%m-%d')}")
-    
+    print(f"[DEBUG] Entrypoint started at {time.strftime('%Y-%m-%d %H:%M:%S')}")
     session = AgentSession(
         llm=google.beta.realtime.RealtimeModel(
             voice="Zephyr"
         )
     )
-    
-    print("[DEBUG] Creating Assistant instance...")
-    assistant = Assistant()
-    print("[DEBUG] Assistant created successfully")
 
-    print("[DEBUG] Starting session...")
+    assistant = Assistant()
+
+    print("[DEBUG] Starting agent session...")
     await session.start(
         room=ctx.room,
         agent=assistant,
@@ -311,31 +266,25 @@ async def entrypoint(ctx: agents.JobContext):
             noise_cancellation=noise_cancellation.BVC(),
         ),
     )
-    print("[DEBUG] Session started")
 
-    print("[DEBUG] Connecting to room...")
     await ctx.connect()
-    print("[DEBUG] Connected to room")
+    print("[DEBUG] Connected to room.")
 
-    print("[DEBUG] Generating initial reply...")
-    # Fetch products synchronously and include them in the initial instructions
-    print("[DEBUG] Fetching products for entrypoint before generating reply...")
+    # Fetch menu to include in initial instructions so LLM knows the exact menu
     try:
         menu_data = assistant.get_all_products_for_entrypoint()
-        print(f"[DEBUG] Menu data fetched for entrypoint: {menu_data[:200]}...")
+        print("[DEBUG] Menu data fetched for initial prompt.")
     except Exception as e:
         menu_data = f"ERROR: Could not fetch menu before starting session. {str(e)}"
         print(f"[ERROR] {menu_data}")
 
-    # Append the menu data to the session instructions so the realtime LLM voice
-    # has the product information available immediately when producing speech.
-    initial_instructions = SESSION_INSTRUCTION + "\n\n" + "MENU_DATA_FOR_AGENT:\n" + menu_data
+    initial_instructions = SESSION_INSTRUCTION + "\n\nMENU_DATA_FOR_AGENT:\n" + menu_data
 
-    await session.generate_reply(
-        instructions=initial_instructions
-    )
-    print("[DEBUG] Initial reply generated")
+    # Generate the first reply using the natural flow instructions + menu data
+    await session.generate_reply(instructions=initial_instructions)
+    print("[DEBUG] Initial reply generated successfully.")
 
+# ---------- RUN ----------
 if __name__ == "__main__":
-    print(f"[DEBUG] Application starting at {time.strftime('%H:%M:%S %z on %Y-%m-%d')}")
+    print(f"[INFO] Sania Agent starting at {time.strftime('%Y-%m-%d %H:%M:%S')}")
     agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))
