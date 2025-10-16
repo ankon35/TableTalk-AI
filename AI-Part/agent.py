@@ -287,18 +287,18 @@
 
 
 
-
 """
 Friendly, natural-sounding LiveKit Agent for Pizza Burg Bangladesh (prompt-based follow-up).
 This version uses prompt instructions only to enforce the 5-second follow-up behavior
 (e.g., "Hello? Can you hear me okay?") — no runtime timers are added.
 Includes order storage functionality to save customer orders to the database.
-FIXED: Single-row order storage with array-based item fields.
+FIXED: Single-row order storage with array-based item fields + duplicate prevention.
 """
 
 from dotenv import load_dotenv
 import os
 import time
+import hashlib
 from typing import List, Dict
 
 from supabase import create_client, Client
@@ -333,9 +333,11 @@ ABSOLUTE RULES:
     - Call this function ONLY ONCE per order, passing ALL items together.
     - The function accepts arrays/lists for item_names, item_sizes, and item_prices.
     - WAIT for the function response before continuing.
-    - If you receive an ERROR response, inform the customer there was a technical issue and try calling the function again.
+    - If you receive a WARNING about duplicate save, DO NOT call the function again - the order is already saved.
+    - If you receive an ERROR response (not WARNING), inform the customer there was a technical issue and try calling the function again ONCE.
     - ONLY after receiving SUCCESS response should you tell the customer their order is confirmed.
     - DO NOT say "order is confirmed" or "order is placed" until you have successfully called save_order_to_database.
+    - NEVER call save_order_to_database more than once for the same order.
 7.  If the customer is silent for more than 5 seconds, give a gentle follow-up like
     "Are you still there?" or "Can you hear me okay?" to re-engage them.
 
@@ -346,6 +348,7 @@ TOOL USAGE:
   * Pass ALL items in arrays (item_names, item_sizes, item_prices).
   * ALWAYS wait for the response before proceeding.
   * If you get an ERROR, try again or inform the customer.
+  * If you get a WARNING about duplicate, the order is already saved - proceed to confirmation.
   * Example: Customer orders 2 pizzas → call function ONCE with arrays containing both items.
 
 SPEAKING STYLE:
@@ -403,8 +406,9 @@ Sania: Aww, you're very welcome, sir! Have a lovely evening — and enjoy your p
     1. Tell customer "Let me save your order to our system..."
     2. Call save_order_to_database ONCE with ALL items in arrays
     3. Wait for the function response
-    4. If ERROR occurs, try again or inform customer
-    5. ONLY after SUCCESS response, confirm "Your order is confirmed!"
+    4. If WARNING occurs (duplicate save), proceed to confirmation - order is already saved
+    5. If ERROR occurs, try again or inform customer
+    6. ONLY after SUCCESS or WARNING response, confirm "Your order is confirmed!"
 -   Never say "order confirmed" before successfully saving to database.
 -   Always be warm, human, and concise.
 """
@@ -414,6 +418,8 @@ Sania: Aww, you're very welcome, sir! Have a lovely evening — and enjoy your p
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=AGENT_INSTRUCTION)
+        self.order_saved = False  # Idempotency flag to prevent duplicate saves
+        self.current_order_hash = None  # Track current order to detect duplicates
         try:
             supabase_url = os.getenv("SUPABASE_URL")
             supabase_key = os.getenv("SUPABASE_KEY")
@@ -508,6 +514,16 @@ class Assistant(Agent):
             You MUST check the response and only proceed if you receive SUCCESS.
         """
         try:
+            # Create unique hash for this order to detect duplicates
+            order_signature = f"{customer_name}|{customer_address}|{customer_number}|{'|'.join(item_names)}|{'|'.join(item_sizes)}"
+            order_hash = hashlib.md5(order_signature.encode()).hexdigest()
+            
+            # Check if this exact order was already saved
+            if self.order_saved and self.current_order_hash == order_hash:
+                warning_msg = "WARNING: This order was already saved. Skipping duplicate save."
+                print(f"[WARNING] Duplicate save attempt detected for order hash: {order_hash}")
+                return warning_msg
+            
             print(f"[DEBUG] Attempting to save order for {customer_name}")
             print(f"[DEBUG] Items: {item_names}, Sizes: {item_sizes}, Prices: {item_prices}")
             
@@ -559,6 +575,10 @@ class Assistant(Agent):
             print(f"[DEBUG] Database response: {response}")
             
             if response.data and len(response.data) > 0:
+                # Mark this order as saved
+                self.order_saved = True
+                self.current_order_hash = order_hash
+                
                 items_summary = ", ".join([f"{name} ({size})" for name, size in zip(item_names, item_sizes)])
                 success_msg = f"SUCCESS: Order saved! {quantity} items [{items_summary}] recorded for {customer_name}. Total: {total_price_str} Taka."
                 print(f"[SUCCESS] {success_msg}")
