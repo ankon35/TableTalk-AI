@@ -289,12 +289,12 @@
 
 
 
-
 """
 Friendly, natural-sounding LiveKit Agent for Pizza Burg Bangladesh (prompt-based follow-up).
 This version uses prompt instructions only to enforce the 5-second follow-up behavior
 (e.g., "Hello? Can you hear me okay?") — no runtime timers are added.
 Includes order storage functionality to save customer orders to the database.
+FIXED: Reliable order saving with proper error handling and LLM guidance.
 """
 
 from dotenv import load_dotenv
@@ -329,16 +329,25 @@ ABSOLUTE RULES:
 3.  USE product names and details exactly as returned from tool responses.
 4.  Always confirm the full order details with the customer before finalizing.
 5.  After confirming an order, politely collect the customer's name, delivery address, and phone number.
-6.  Once you have ALL order details AND customer info, you MUST call save_order_to_database 
-    for EACH item separately. If customer orders 2 pizzas, call the function TWICE.
+6.  CRITICAL ORDER SAVING REQUIREMENT:
+    - Once you have ALL order details AND customer info (name, address, phone), you MUST call save_order_to_database.
+    - Call this function SEPARATELY for EACH item in the order.
+    - If customer orders 2 pizzas, you MUST make 2 separate function calls.
+    - WAIT for the function response before continuing.
+    - If you receive an ERROR response, inform the customer there was a technical issue and try calling the function again.
+    - ONLY after receiving SUCCESS responses for ALL items should you tell the customer their order is confirmed.
+    - DO NOT say "order is confirmed" or "order is placed" until you have successfully called save_order_to_database for every item.
 7.  If the customer is silent for more than 5 seconds, give a gentle follow-up like
     "Are you still there?" or "Can you hear me okay?" to re-engage them.
 
 TOOL USAGE:
 - fetch_all_products: Returns the full menu. Use this before suggesting any pizza.
 - fetch_product_info: Returns info for a single product. Use the exact returned values in your replies.
-- save_order_to_database: Save ONE order item to database. Call this function separately for EACH item ordered.
-  Example: If customer orders 2 pizzas, call this function TWICE with different item details each time.
+- save_order_to_database: Save ONE order item to database. 
+  * Call this function separately for EACH item ordered.
+  * ALWAYS wait for the response before proceeding.
+  * If you get an ERROR, try again or inform the customer.
+  * Example: If customer orders 2 pizzas, call this function TWICE with different item details each time.
 
 SPEAKING STYLE:
 -   Friendly, casual, and natural. Use small talk and short, engaging phrases.
@@ -377,9 +386,14 @@ Sania: Got it — House 23, Road 4, Uttara Sector 9. And your contact number, pl
 Customer: 01712-345678.
 Sania: Let me just repeat that — 01712-345678, right, sir?
 Customer: Yes, correct.
-Sania: Perfect! So, confirming your order — one large Chicken Supreme Pizza and one medium Beef Lover's Pizza. Delivery to House 23, Road 4, Uttara Sector 9, Dhaka. Your total will be around 1,450 Taka, and it should reach you in about 35 to 40 minutes.
+Sania: Perfect! Let me just save your order to our system... 
+[CALLS save_order_to_database for first item]
+[WAITS for response]
+[CALLS save_order_to_database for second item]
+[WAITS for response]
+Great! Your order's confirmed — one large Chicken Supreme Pizza and one medium Beef Lover's Pizza. Delivery to House 23, Road 4, Uttara Sector 9, Dhaka. Your total will be around 1,450 Taka, and it should reach you in about 35 to 40 minutes.
 Customer: Sounds good.
-Sania: Yay! Your order's all set, Mr. Rahim. 🍕 Thanks a bunch for choosing Pizza Burg Bangladesh! You're going to love this one.
+Sania: Yay! Thanks a bunch for choosing Pizza Burg Bangladesh! You're going to love this one.
 Customer: Thank you, Sania.
 Sania: Aww, you're very welcome, sir! Have a lovely evening — and enjoy your pizza party! 😄
 
@@ -388,8 +402,13 @@ Sania: Aww, you're very welcome, sir! Have a lovely evening — and enjoy your p
 -   Be responsive to the user's specific questions. The demo is a guide, not a fixed script.
 -   Use natural pauses, but if silence lasts more than 5 seconds, use a follow-up.
 -   Repeat the customer's exact words for order and contact detail confirmation.
--   IMPORTANT: After confirming all details, call save_order_to_database SEPARATELY for EACH item.
-    For example, if there are 2 items, make 2 separate function calls.
+-   CRITICAL: After confirming all details, you MUST:
+    1. Tell customer "Let me save your order to our system..."
+    2. Call save_order_to_database SEPARATELY for EACH item
+    3. Wait for each function response
+    4. If any ERROR occurs, try again or inform customer
+    5. ONLY after all SUCCESS responses, confirm "Your order is confirmed!"
+-   Never say "order confirmed" before successfully saving all items to database.
 -   Always be warm, human, and concise.
 """
 
@@ -404,6 +423,7 @@ class Assistant(Agent):
             print(f"[DEBUG] Initializing Supabase at {time.strftime('%Y-%m-%d %H:%M:%S')}")
             if not supabase_url or not supabase_key:
                 print("[WARN] SUPABASE_URL or SUPABASE_KEY not set in environment.")
+                raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY in environment variables")
             self.supabase: Client = create_client(supabase_url, supabase_key)
             print("[SUCCESS] Supabase client initialized.")
         except Exception as e:
@@ -477,19 +497,31 @@ class Assistant(Agent):
         Save a single order item to the database.
         Call this function once for EACH item in the order.
         
+        IMPORTANT: You MUST call this function for every item separately.
+        Wait for the response before proceeding to the next item or confirming the order.
+        
         Args:
-            customer_name: Customer's name
-            customer_address: Customer's delivery address
-            customer_number: Customer's phone number
+            customer_name: Customer's name (e.g., "Mr. Rahim")
+            customer_address: Customer's delivery address (e.g., "House 23, Road 4, Uttara Sector 9, Dhaka")
+            customer_number: Customer's phone number (e.g., "01712-345678")
             item_name: Name of the pizza/product (e.g., "Chicken Supreme Pizza")
-            quantity: Quantity ordered (e.g., "1", "2")
+            quantity: Quantity ordered as string (e.g., "1", "2")
             item_size: Size of the item (e.g., "large", "medium", "small")
-            total_price: Total price for this item (e.g., "850")
+            total_price: Total price for this item as string (e.g., "850", "1200")
         
         Returns:
-            Success or error message
+            SUCCESS message if saved, ERROR message if failed.
+            You MUST check the response and only proceed if you receive SUCCESS.
         """
         try:
+            print(f"[DEBUG] Attempting to save order: {item_name} (x{quantity}, {item_size}) for {customer_name}")
+            
+            # Validate inputs
+            if not all([customer_name, customer_address, customer_number, item_name, quantity, item_size, total_price]):
+                error_msg = "ERROR: Missing required information. All fields must be provided."
+                print(f"[ERROR] {error_msg}")
+                return error_msg
+            
             # Prepare order record for database
             record = {
                 "name": customer_name,
@@ -501,22 +533,26 @@ class Assistant(Agent):
                 "total_price": total_price
             }
             
+            print(f"[DEBUG] Inserting record: {record}")
+            
             # Insert order item into database
             response = self.supabase.table(ORDER_TABLE).insert([record]).execute()
             
-            if response.data:
+            print(f"[DEBUG] Database response: {response}")
+            
+            if response.data and len(response.data) > 0:
                 success_msg = f"SUCCESS: Order item saved! {item_name} (x{quantity}, {item_size}) recorded for {customer_name}."
                 print(f"[SUCCESS] {success_msg}")
                 return success_msg
             else:
-                error_msg = "ERROR: Failed to save order to database."
+                error_msg = f"ERROR: Failed to save order to database. Response: {response}"
                 print(f"[ERROR] {error_msg}")
-                return error_msg
+                return "ERROR: Failed to save order to database. Please try again."
                 
         except Exception as e:
             error_msg = f"ERROR: Exception while saving order: {str(e)}"
             print(f"[ERROR] {error_msg}")
-            return error_msg
+            return f"ERROR: Technical issue while saving order - {str(e)}. Please try again or contact support."
 
     def get_all_products_for_entrypoint(self) -> str:
         """Synchronous helper used before starting the session so initial prompt has the menu."""
